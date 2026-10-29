@@ -1,0 +1,6 @@
+numpy>=1.23
+opencv-python>=4.8
+matplotlib>=3.6
+
+# Optional learned front-end (SuperPoint + SuperGlue):
+# torch>=2.0

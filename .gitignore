@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local experiments and generated results
+runs/
+data/
+datasets/
+_*/
+third_party/
+*.pth
+*.pt
+*.onnx
+*.engine
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Media that should not be committed accidentally
+*.avi
+*.mp4
+*.mov
+
+# Scratch preview files
+_preview*.jpg
