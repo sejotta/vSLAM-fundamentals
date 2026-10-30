@@ -2,6 +2,11 @@
 
 ### Incremental 3D reconstruction and camera localisation with PnP
 
+![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)
+![OpenCV](https://img.shields.io/badge/OpenCV-4.8%2B-5C3EE8?logo=opencv&logoColor=white)
+![PyTorch](https://img.shields.io/badge/PyTorch-optional-EE4C2C?logo=pytorch&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-6f42c1)
+
 A compact Python implementation of a visual reconstruction pipeline: from a
 calibrated image sequence it builds a sparse coloured 3D map and estimates the
 pose of every new keyframe with **PnP against the map already reconstructed**.
