@@ -4,6 +4,12 @@ This document explains the geometry and the design decisions behind the
 pipeline. It is written to be read alongside the code: every section points to
 the module that implements it.
 
+The core of the reconstruction is the loop described in Section 6: **PnP
+localises each new keyframe against the 3D points already reconstructed, and
+triangulation adds the new structure observed in that keyframe**. The
+synthetic scene mentioned in Section 10 is a deterministic regression harness,
+not the project's input data.
+
 ---
 
 ## 1. Frames and notation
@@ -29,8 +35,10 @@ the code.
 
 The first keyframe is the world origin, so `T_wc(0) = I`. Monocular
 reconstruction has no metric scale: multiplying every translation by a
-constant produces exactly the same images. All accuracy comparisons therefore
-use a Sim(3) alignment (Section 10).
+constant produces exactly the same images. When ground truth is available,
+accuracy comparisons therefore use a Sim(3) alignment (Section 10). The
+bookshelf example has no ground-truth trajectory, so only its reprojection
+error is reported.
 
 The camera is a pinhole model with intrinsics
 
@@ -94,7 +102,8 @@ The threshold is a trade-off:
   triangulation;
 - too large → few keyframes, less overlap, more matching failures.
 
-The synthetic demo uses `8 px`; a typical 30 fps video uses `25 px`.
+The generic sequence runner uses `25 px`; the bookshelf demo supplies five
+frames that are already treated as keyframes, so the selector is bypassed.
 
 ---
 
@@ -194,9 +203,12 @@ scene may not provide enough parallax.
 
 ---
 
-## 6. Tracking a new keyframe
+## 6. Tracking a new keyframe with PnP
 
 `IncrementalSlam._add_keyframe`
+
+This is the incremental reconstruction step: the existing map is used to
+localise the new camera, and the new camera is used to extend the map.
 
 For each new keyframe `k`:
 
@@ -237,18 +249,19 @@ between map points and keypoint detections.
 
 ---
 
-## 7. Pose composition and drift
+## 7. Fallback pose composition and drift
 
-The world pose is updated by composing relative motions:
+The primary localisation path is PnP. When too few 3D-2D correspondences are
+available, the pipeline falls back to composing the relative motion from `E`:
 
 ```text
 T_wc(k) = T_wc(k-1) · T_21(k)⁻¹
 ```
 
-Each relative pose is accurate locally, but small rotation and translation
-errors accumulate. This is the classical **drift** of visual odometry. The
-pipeline reduces it with local refinement, but it does not perform loop
-closure or global pose-graph optimisation, so long sequences will bend.
+Even with PnP, small rotation and translation errors accumulate over the
+sequence. This is the classical **drift** of visual odometry. The pipeline
+reduces it with local refinement, but it does not perform loop closure or
+global pose-graph optimisation, so long sequences will bend.
 
 ---
 
@@ -294,9 +307,10 @@ canvas that contains both images, and warps image 1 into the plane of image 2.
 The new image is copied on top with a clean seam (no blending). Empty regions
 stay black; `crop_black_borders` removes the outer margins.
 
-The demo uses a single textured wall, so the planar model is exact. A real
-scene with depth violates the model: parallax makes the frames disagree and
-the mosaic drifts.
+The self-contained homography test uses a single textured wall, so the planar
+model is exact. The bookshelf mosaic shown in the README was produced from the
+real sequence by the original prototype. A real scene with depth violates the
+planar model: parallax makes the frames disagree and the mosaic drifts.
 
 ---
 
@@ -324,27 +338,29 @@ Two metrics are reported:
   error is the norm of the difference between the aligned relative
   translations.
 
-The demo also reports the RMS reprojection error over all map observations.
+The bookshelf sequence has no ground-truth trajectory, so only the RMS
+reprojection error is reported for it. The synthetic regression scene has
+exact poses and is the only place where ATE and RPE are computed.
 
 ---
 
 ## 11. Parameters
 
-| Parameter | Default (synthetic) | Meaning |
+| Parameter | Bookshelf demo | Meaning |
 |---|---:|---|
 | `f_ransac_threshold` | 0.8 px | epipolar inlier threshold |
-| `max_reproj_error` | 1.5 px | triangulation reprojection gate |
-| `max_depth` | 12.0 | reject points beyond this depth |
+| `max_reproj_error` | 2.5 px | triangulation reprojection gate |
+| `max_depth` | 50.0 | reject points beyond this depth |
 | `min_depth` | 0.05 | reject points behind/too close |
-| `min_triangulation_angle` | 1.5° | reject poorly conditioned rays |
+| `min_triangulation_angle` | 0.5° | reject poorly conditioned rays |
 | `pnp_reprojection_threshold` | 4.0 px | PnP RANSAC threshold |
 | `min_pnp_points` | 6 | minimum 3D-2D correspondences |
 | `refine_iterations` | 3 | alternating BA sweeps |
-| `keyframe_threshold` | 8 px | accumulated optical flow |
-| `max_keyframes` | 10 | cap on selected keyframes |
 
-For a real indoor sequence, `max_depth=50`, `max_reproj_error=2.5` and
-`keyframe_threshold=25` are more forgiving starting points.
+The bookshelf demo uses its five supplied frames directly. The generic
+`run_sequence.py` path uses `keyframe_threshold=25 px` and
+`max_keyframes=10` by default; those values are a better starting point for a
+long video.
 
 ---
 

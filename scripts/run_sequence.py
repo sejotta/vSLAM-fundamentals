@@ -77,7 +77,7 @@ def main() -> int:
         raise FileNotFoundError(paths[0])
     height, width = probe.shape[:2]
 
-    camera = Camera(
+    calibration = Camera(
         fx=args.fx,
         fy=args.fy,
         cx=args.cx,
@@ -85,6 +85,16 @@ def main() -> int:
         width=width,
         height=height,
         dist=np.asarray(args.dist if args.dist else [0, 0, 0, 0, 0], dtype=float),
+    )
+    # Geometry runs on undistorted images, so the pinhole model is exact.
+    camera = Camera(
+        fx=args.fx,
+        fy=args.fy,
+        cx=args.cx,
+        cy=args.cy,
+        width=width,
+        height=height,
+        dist=np.zeros(5),
     )
 
     keyframes = select_keyframes(
@@ -101,6 +111,8 @@ def main() -> int:
         image = cv2.imread(str(paths[index]))
         if image is None:
             raise FileNotFoundError(paths[index])
+        if calibration.dist.size and np.any(calibration.dist):
+            image = cv2.undistort(image, calibration.K, calibration.dist)
         images.append(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
 
     matcher = (

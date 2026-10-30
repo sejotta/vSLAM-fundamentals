@@ -1,17 +1,16 @@
-# The synthetic simulation
+# Synthetic regression harness
 
-The demo does not depend on a robotics simulator, a robot model, a recorded
-dataset, or any external asset. A scene is generated in memory, rendered with
-OpenCV, and consumed by the same pipeline that runs on real images. That makes
-the experiment reproducible and gives us exact ground truth for evaluation.
-
-![Synthetic sequence](images/synthetic_sequence.gif)
+This is **not** the project's input data and it is not the main demo. The main
+real-data result uses the five bookshelf frames in `examples/bookshelf/`. The
+synthetic scene is a deterministic test harness: it provides exact camera
+poses so the geometry implementation can be checked automatically, without a
+robotics simulator, a robot model, or any external asset.
 
 ---
 
-## 1. Why simulate?
+## 1. Why a synthetic harness?
 
-A visual SLAM pipeline is easier to debug when the ground truth is known:
+A reconstruction pipeline is easier to test when the ground truth is known:
 
 - every camera pose is exact,
 - every 3D point is known,
@@ -19,10 +18,10 @@ A visual SLAM pipeline is easier to debug when the ground truth is known:
 - the amount of noise is controlled,
 - the scene can be regenerated from a seed.
 
-With a real sequence, a trajectory error can come from bad calibration, bad
-matches, wrong scale, or evaluation mistakes. With a synthetic sequence those
-variables are separated. The same code is then run on real folders through
-`scripts/run_sequence.py`.
+With a real sequence, an error can come from bad calibration, bad matches,
+wrong scale, or evaluation mistakes. With the synthetic scene those variables
+are separated. The same code is then run on real frames through
+`scripts/run_bookshelf_demo.py` and `scripts/run_sequence.py`.
 
 ---
 
@@ -83,7 +82,7 @@ the scene is not a single plane.
 
 The default sequence has 24 frames. The accumulated optical-flow selector
 picks 9 keyframes, which is enough to show drift and refinement without
-making the demo slow.
+making the regression test slow.
 
 ---
 
@@ -132,8 +131,8 @@ dataset/
 ```
 
 The ground-truth CSV stores the camera centre and the rotation matrix for each
-frame. The demo converts it into the SLAM world frame (the first selected
-keyframe) before comparing:
+frame. The synthetic runner converts it into the reconstruction world frame
+(the first selected keyframe) before comparing:
 
 ```text
 T_wc_relative(i) = T_wc(0)⁻¹ · T_wc(i)
@@ -186,7 +185,9 @@ Useful switches:
 | `--reuse-dataset` | reuse previously rendered images |
 
 The output directory contains the images, the ground truth, the estimated
-trajectory, the map plot, the match contact sheet and `metrics.json`.
+trajectory, the map plot, the match contact sheet and `metrics.json`. These
+synthetic images are intentionally not used in the project showcase; the
+README uses the real bookshelf reconstruction.
 
 ---
 
@@ -201,8 +202,8 @@ The simulator is intentionally simple. It does not model:
 - dynamic objects.
 
 Those effects are exactly the ones that make real SLAM difficult. The
-synthetic demo is a correctness and regression test for the geometry, not a
-benchmark of robustness.
+synthetic harness is a correctness and regression test for the geometry, not
+a benchmark of robustness.
 
 The design is also deliberately simulator-agnostic: there is no robot model,
 no scene file, no bridge process, and no dependency on an external robotics

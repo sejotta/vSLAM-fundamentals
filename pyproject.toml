@@ -5,12 +5,18 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "vslam-fundamentals"
 version = "0.1.0"
-description = "A compact, readable monocular visual SLAM pipeline with a synthetic scene generator."
+description = "Incremental 3D reconstruction with PnP camera localisation and triangulation."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [{ name = "vSLAM Fundamentals contributors" }]
-keywords = ["visual-slam", "computer-vision", "structure-from-motion", "opencv"]
+keywords = [
+  "visual-slam",
+  "structure-from-motion",
+  "pnp",
+  "3d-reconstruction",
+  "opencv",
+]
 classifiers = [
   "Programming Language :: Python :: 3",
   "License :: OSI Approved :: MIT License",
