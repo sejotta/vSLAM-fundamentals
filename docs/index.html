@@ -1,0 +1,1660 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>vSLAM Fundamentals — Reconstrucción 3D incremental con PnP</title>
+  <meta name="description" content="Guía técnica y página de presentación de vSLAM Fundamentals: reconstrucción 3D incremental, PnP, triangulación, geometría multivista y despliegue.">
+  <meta name="theme-color" content="#070b16">
+  <meta property="og:title" content="vSLAM Fundamentals — Reconstrucción 3D con PnP">
+  <meta property="og:description" content="Un motor, dos entregables: geometría multivista y reconstrucción 3D incremental con PnP.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="images/bookshelf_map.png">
+  <style>
+    :root {
+      --bg: #070b16;
+      --bg-2: #0a1020;
+      --panel: rgba(15, 23, 42, .72);
+      --panel-solid: #0f172a;
+      --text: #e9eefb;
+      --muted: #9aa9c7;
+      --faint: #6f7f9f;
+      --line: rgba(148, 163, 184, .16);
+      --line-strong: rgba(148, 163, 184, .28);
+      --cyan: #5eead4;
+      --blue: #7aa2ff;
+      --purple: #b388ff;
+      --orange: #ffb86b;
+      --green: #7ee787;
+      --red: #ff7b72;
+      --radius: 20px;
+      --radius-sm: 12px;
+      --shadow: 0 30px 90px rgba(0, 0, 0, .45);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      --sans: "Segoe UI", Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--text);
+      font-family: var(--sans);
+      background:
+        radial-gradient(1000px 650px at 8% -10%, rgba(122, 162, 255, .20), transparent 60%),
+        radial-gradient(850px 560px at 96% 0%, rgba(94, 234, 212, .11), transparent 55%),
+        radial-gradient(900px 700px at 50% 110%, rgba(179, 136, 255, .10), transparent 60%),
+        linear-gradient(180deg, #070b16 0%, #080d1a 45%, #070b16 100%);
+      overflow-x: hidden;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: -1;
+      background-image:
+        linear-gradient(rgba(148, 163, 184, .035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(148, 163, 184, .035) 1px, transparent 1px);
+      background-size: 56px 56px;
+      mask-image: radial-gradient(ellipse at 50% 20%, black 0%, transparent 72%);
+    }
+
+    a { color: var(--cyan); text-decoration: none; }
+    a:hover { color: #a7fff2; }
+    img { max-width: 100%; display: block; }
+    code, pre { font-family: var(--mono); }
+    ::selection { background: rgba(94, 234, 212, .28); color: #fff; }
+
+    .wrap { width: min(1160px, calc(100% - 40px)); margin: 0 auto; }
+
+    /* ---------- top bar ---------- */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      background: rgba(7, 11, 22, .72);
+      border-bottom: 1px solid var(--line);
+    }
+    .topbar-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 22px;
+      min-height: 68px;
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text);
+      font-weight: 800;
+      letter-spacing: -.03em;
+      font-size: 1.05rem;
+      white-space: nowrap;
+    }
+    .brand:hover { color: var(--text); }
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 9px;
+      background: linear-gradient(135deg, rgba(94, 234, 212, .22), rgba(122, 162, 255, .28));
+      border: 1px solid rgba(94, 234, 212, .35);
+      color: var(--cyan);
+      font-weight: 900;
+    }
+    .brand .dot { color: var(--cyan); }
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .nav a {
+      color: var(--muted);
+      font-size: .86rem;
+      font-weight: 600;
+      padding: 8px 11px;
+      border-radius: 9px;
+      transition: color .2s, background .2s;
+    }
+    .nav a:hover { color: var(--text); background: rgba(148, 163, 184, .08); }
+    .nav .nav-cta {
+      color: #04111a;
+      background: linear-gradient(135deg, var(--cyan), #9af7e7);
+      margin-left: 4px;
+    }
+    .nav .nav-cta:hover { color: #04111a; background: linear-gradient(135deg, #9af7e7, var(--cyan)); }
+
+    /* ---------- shared ---------- */
+    .section { padding: 86px 0; position: relative; }
+    section[id] { scroll-margin-top: 84px; }
+    .section + .section { border-top: 1px solid rgba(148, 163, 184, .08); }
+    .section-head { max-width: 760px; margin-bottom: 34px; }
+    .kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--cyan);
+      font-size: .72rem;
+      font-weight: 800;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .kicker::before {
+      content: "";
+      width: 26px;
+      height: 1px;
+      background: linear-gradient(90deg, var(--cyan), transparent);
+    }
+    h1, h2, h3, h4 { line-height: 1.12; letter-spacing: -.03em; margin: 0; }
+    h2 { font-size: clamp(1.9rem, 4vw, 3rem); }
+    h3 { font-size: 1.18rem; }
+    h4 { font-size: 1rem; }
+    .section-head p { color: var(--muted); margin: 14px 0 0; max-width: 680px; }
+    .muted { color: var(--muted); }
+    .small { font-size: .86rem; }
+    .accent { color: var(--cyan); }
+    .accent-2 { color: var(--blue); }
+    .accent-3 { color: var(--purple); }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      padding: 13px 18px;
+      border-radius: 11px;
+      font-weight: 700;
+      font-size: .92rem;
+      border: 1px solid transparent;
+      transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+      cursor: pointer;
+    }
+    .btn:hover { transform: translateY(-2px); }
+    .btn.primary {
+      color: #04111a;
+      background: linear-gradient(135deg, var(--cyan), #9af7e7);
+      box-shadow: 0 12px 35px rgba(94, 234, 212, .20);
+    }
+    .btn.primary:hover { box-shadow: 0 16px 45px rgba(94, 234, 212, .30); }
+    .btn.ghost {
+      color: var(--text);
+      border-color: var(--line-strong);
+      background: rgba(15, 23, 42, .55);
+    }
+    .btn.ghost:hover { background: rgba(148, 163, 184, .10); }
+
+    .badges { display: flex; flex-wrap: wrap; gap: 8px; margin: 22px 0; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 11px;
+      border-radius: 8px;
+      font-size: .76rem;
+      font-weight: 700;
+      letter-spacing: .01em;
+      border: 1px solid var(--line);
+      background: rgba(15, 23, 42, .72);
+      color: #dbe6ff;
+    }
+    .badge::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 12px currentColor;
+    }
+    .badge.python { color: #8fc7ff; border-color: rgba(143, 199, 255, .28); }
+    .badge.opencv { color: #b7a6ff; border-color: rgba(183, 166, 255, .28); }
+    .badge.torch { color: #ff9f8f; border-color: rgba(255, 159, 143, .28); }
+    .badge.license { color: #d5b3ff; border-color: rgba(213, 179, 255, .28); }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(148, 163, 184, .06);
+      color: var(--muted);
+      font-size: .75rem;
+      font-weight: 600;
+    }
+
+    .card {
+      background: linear-gradient(180deg, rgba(15, 23, 42, .86), rgba(10, 16, 32, .70));
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: 0 18px 50px rgba(0, 0, 0, .18);
+    }
+    .card.soft { background: rgba(15, 23, 42, .45); box-shadow: none; }
+    .card h3 { margin-bottom: 9px; }
+    .card p { color: var(--muted); margin: 0; }
+    .card p + p { margin-top: 10px; }
+    .card ul { color: var(--muted); margin: 12px 0 0; padding-left: 18px; }
+    .card li { margin: 7px 0; }
+    .card li::marker { color: var(--cyan); }
+
+    .grid { display: grid; gap: 16px; }
+    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+    .callout {
+      border: 1px solid rgba(94, 234, 212, .22);
+      border-left: 3px solid var(--cyan);
+      border-radius: 14px;
+      padding: 18px 20px;
+      background: linear-gradient(90deg, rgba(94, 234, 212, .08), rgba(15, 23, 42, .45));
+      color: #d7e6ff;
+      margin-top: 20px;
+    }
+    .callout strong { color: var(--cyan); }
+    .callout.warning {
+      border-color: rgba(255, 184, 107, .24);
+      border-left-color: var(--orange);
+      background: linear-gradient(90deg, rgba(255, 184, 107, .08), rgba(15, 23, 42, .45));
+    }
+    .callout.warning strong { color: var(--orange); }
+
+    /* ---------- hero ---------- */
+    .hero {
+      display: grid;
+      grid-template-columns: 1.08fr .92fr;
+      gap: 46px;
+      align-items: center;
+      padding: 78px 0 64px;
+    }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--cyan);
+      font-size: .74rem;
+      font-weight: 800;
+      letter-spacing: .17em;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+    .eyebrow::before {
+      content: "";
+      width: 34px;
+      height: 1px;
+      background: linear-gradient(90deg, var(--cyan), transparent);
+    }
+    .hero h1 {
+      font-size: clamp(2.8rem, 5.2vw, 4.6rem);
+      letter-spacing: -.055em;
+      line-height: .96;
+      margin: 0 0 20px;
+      text-wrap: balance;
+    }
+    .hero h1 em {
+      font-style: normal;
+      background: linear-gradient(110deg, var(--cyan), #9af7e7 40%, var(--blue) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .hero .lede {
+      color: var(--muted);
+      font-size: 1.06rem;
+      max-width: 610px;
+      margin: 0;
+    }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 11px; margin-top: 26px; }
+    .hero-facts {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      list-style: none;
+      padding: 0;
+      margin: 34px 0 0;
+      max-width: 620px;
+    }
+    .hero-facts li {
+      padding: 12px 12px 11px;
+      border-left: 1px solid var(--line);
+    }
+    .hero-facts strong {
+      display: block;
+      font-size: 1.32rem;
+      letter-spacing: -.03em;
+      color: var(--text);
+    }
+    .hero-facts span { color: var(--faint); font-size: .74rem; }
+
+    .visual-stack { position: relative; padding: 16px 0 42px 18px; }
+    .visual-card {
+      position: relative;
+      border: 1px solid var(--line-strong);
+      border-radius: 22px;
+      overflow: hidden;
+      background: #0b1122;
+      box-shadow: var(--shadow);
+      transform: rotate(1.2deg);
+    }
+    .visual-card img { width: 100%; height: 420px; object-fit: cover; filter: saturate(1.08) contrast(1.02); }
+    .visual-card::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, transparent 55%, rgba(7, 11, 22, .85));
+      pointer-events: none;
+    }
+    .visual-caption {
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      bottom: 15px;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      color: #e9eefb;
+      font-size: .78rem;
+      font-weight: 700;
+      letter-spacing: .02em;
+    }
+    .visual-caption span { color: var(--cyan); }
+    .visual-float {
+      position: absolute;
+      left: -22px;
+      bottom: 0;
+      width: 62%;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid var(--line-strong);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, .55);
+      transform: rotate(-3.2deg);
+      background: #0b1122;
+    }
+    .visual-float img { width: 100%; height: 150px; object-fit: cover; }
+    .visual-float span {
+      display: block;
+      padding: 8px 11px;
+      color: var(--muted);
+      font-size: .68rem;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      background: rgba(7, 11, 22, .9);
+    }
+
+    /* ---------- tabs ---------- */
+    .tablist {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 6px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(15, 23, 42, .55);
+      width: fit-content;
+      margin-bottom: 22px;
+    }
+    .tab-btn {
+      appearance: none;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-size: .86rem;
+      font-weight: 700;
+      padding: 11px 15px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: color .2s, background .2s, border-color .2s;
+      text-align: left;
+    }
+    .tab-btn:hover { color: var(--text); background: rgba(148, 163, 184, .07); }
+    .tab-btn.active {
+      color: #04111a;
+      background: linear-gradient(135deg, var(--cyan), #9af7e7);
+      border-color: transparent;
+    }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; animation: panelIn .32s ease both; }
+    @keyframes panelIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .deliverable {
+      display: grid;
+      grid-template-columns: 1.05fr .95fr;
+      gap: 22px;
+      align-items: stretch;
+    }
+    .deliverable .media {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      justify-content: space-between;
+    }
+    .deliverable .media figure {
+      margin: 0;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+      background: #0b1122;
+    }
+    .deliverable .media img { width: 100%; height: 300px; object-fit: cover; }
+    .deliverable .media figcaption {
+      padding: 10px 13px;
+      font-size: .74rem;
+      color: var(--faint);
+      border-top: 1px solid var(--line);
+    }
+    .mini-pipe {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin: 14px 0 16px;
+    }
+    .mini-pipe span {
+      font-family: var(--mono);
+      font-size: .72rem;
+      color: #c8d6f5;
+      border: 1px solid var(--line);
+      background: rgba(148, 163, 184, .06);
+      border-radius: 7px;
+      padding: 5px 8px;
+    }
+    .kpi-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+    .kpi {
+      padding: 8px 11px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: rgba(7, 11, 22, .5);
+      font-size: .76rem;
+      color: var(--muted);
+    }
+    .kpi strong { display: block; color: var(--text); font-size: .97rem; letter-spacing: -.02em; }
+
+    /* ---------- pipeline ---------- */
+    .pipeline {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 13px;
+      margin-top: 28px;
+    }
+    .pipe-step {
+      position: relative;
+      padding: 18px 16px 16px;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: linear-gradient(180deg, rgba(15, 23, 42, .78), rgba(10, 16, 32, .55));
+      min-height: 150px;
+    }
+    .pipe-step .num {
+      display: inline-grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: rgba(94, 234, 212, .10);
+      border: 1px solid rgba(94, 234, 212, .28);
+      color: var(--cyan);
+      font-family: var(--mono);
+      font-size: .72rem;
+      font-weight: 700;
+      margin-bottom: 11px;
+    }
+    .pipe-step h4 { font-size: .95rem; margin-bottom: 6px; }
+    .pipe-step p { color: var(--muted); font-size: .82rem; margin: 0; }
+    .pipe-step code { color: #b9e9ff; font-size: .76rem; }
+
+    .loop {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+    .loop-item {
+      position: relative;
+      padding: 18px;
+      border-radius: 15px;
+      border: 1px solid rgba(122, 162, 255, .22);
+      background: linear-gradient(180deg, rgba(122, 162, 255, .08), rgba(15, 23, 42, .55));
+    }
+    .loop-item h4 { color: #dce8ff; font-size: .92rem; margin-bottom: 5px; }
+    .loop-item p { color: var(--muted); font-size: .8rem; margin: 0; }
+    .loop-item .loop-num {
+      position: absolute;
+      top: 13px;
+      right: 14px;
+      color: rgba(200, 214, 245, .35);
+      font-family: var(--mono);
+      font-size: .72rem;
+    }
+
+    /* ---------- math ---------- */
+    .math-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 26px; }
+    .math-card {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 20px;
+      background: linear-gradient(180deg, rgba(15, 23, 42, .75), rgba(10, 16, 32, .5));
+    }
+    .math-card h4 { display: flex; align-items: center; gap: 9px; margin-bottom: 9px; }
+    .math-card h4 .tag {
+      font-family: var(--mono);
+      font-size: .65rem;
+      color: var(--cyan);
+      border: 1px solid rgba(94, 234, 212, .25);
+      background: rgba(94, 234, 212, .07);
+      border-radius: 6px;
+      padding: 3px 6px;
+      letter-spacing: .04em;
+    }
+    .math-card p { color: var(--muted); font-size: .86rem; margin: 8px 0 0; }
+    .formula {
+      display: block;
+      margin: 11px 0 2px;
+      padding: 11px 13px;
+      border-radius: 9px;
+      border: 1px solid rgba(148, 163, 184, .12);
+      background: #050814;
+      color: #cfe3ff;
+      font-family: var(--mono);
+      font-size: .83rem;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+
+    /* ---------- code ---------- */
+    .code-block {
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      overflow: hidden;
+      background: #050814;
+      margin-top: 14px;
+    }
+    .code-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 9px 13px;
+      background: rgba(148, 163, 184, .06);
+      border-bottom: 1px solid var(--line);
+      color: var(--faint);
+      font-family: var(--mono);
+      font-size: .7rem;
+    }
+    .copy {
+      appearance: none;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: rgba(7, 11, 22, .6);
+      color: var(--muted);
+      font: inherit;
+      font-size: .68rem;
+      padding: 4px 8px;
+      cursor: pointer;
+    }
+    .copy:hover { color: var(--text); border-color: var(--line-strong); }
+    .code-block pre {
+      margin: 0;
+      padding: 16px;
+      overflow-x: auto;
+      color: #d4e2ff;
+      font-size: .8rem;
+      line-height: 1.65;
+      tab-size: 2;
+    }
+    .code-block pre .c { color: #7183a6; }
+    .code-block pre .k { color: #ffb86b; }
+    .code-block pre .s { color: #9af7e7; }
+    .code-block pre .n { color: #b388ff; }
+
+    /* ---------- tables ---------- */
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; margin-top: 18px; }
+    table { width: 100%; border-collapse: collapse; min-width: 620px; }
+    th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .10em; background: rgba(148, 163, 184, .04); }
+    td { color: #cfdcf4; font-size: .86rem; }
+    tr:last-child td { border-bottom: none; }
+    td code { color: #b9e9ff; font-size: .8rem; }
+
+    /* ---------- deploy ---------- */
+    .deploy-grid { display: grid; grid-template-columns: 1.05fr .95fr; gap: 20px; margin-top: 26px; }
+    .deploy-step {
+      display: grid;
+      grid-template-columns: 34px 1fr;
+      gap: 13px;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .deploy-step:last-child { border-bottom: none; }
+    .deploy-step .step-num {
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 9px;
+      background: rgba(94, 234, 212, .10);
+      border: 1px solid rgba(94, 234, 212, .28);
+      color: var(--cyan);
+      font-family: var(--mono);
+      font-size: .72rem;
+      font-weight: 700;
+    }
+    .deploy-step h4 { margin-bottom: 4px; }
+    .deploy-step p { color: var(--muted); font-size: .86rem; margin: 0 0 8px; }
+    .deploy-note {
+      padding: 14px 16px;
+      border-radius: 12px;
+      border: 1px dashed var(--line-strong);
+      color: var(--muted);
+      font-size: .82rem;
+      background: rgba(148, 163, 184, .04);
+    }
+    .deploy-note strong { color: var(--text); }
+
+    /* ---------- results ---------- */
+    .result-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 22px; }
+    .result-card {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+      background: #0b1122;
+    }
+    .result-card img { width: 100%; height: 240px; object-fit: cover; }
+    .result-card div { padding: 11px 13px; color: var(--faint); font-size: .75rem; border-top: 1px solid var(--line); }
+    .wide-figure {
+      margin: 20px 0 0;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+      background: #0b1122;
+    }
+    .wide-figure img { width: 100%; height: 250px; object-fit: cover; }
+    .wide-figure figcaption { padding: 11px 14px; color: var(--faint); font-size: .75rem; border-top: 1px solid var(--line); }
+
+    /* ---------- pack ---------- */
+    .pack-grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 18px; align-items: stretch; margin-top: 24px; }
+    .pack-card {
+      border: 1px solid rgba(94, 234, 212, .24);
+      border-radius: 18px;
+      padding: 24px;
+      background:
+        radial-gradient(500px 260px at 0% 0%, rgba(94, 234, 212, .10), transparent 70%),
+        linear-gradient(180deg, rgba(15, 23, 42, .82), rgba(10, 16, 32, .62));
+    }
+    .pack-card h3 { margin-bottom: 12px; }
+    .pack-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 9px; }
+    .pack-list li { display: flex; gap: 9px; color: var(--muted); font-size: .88rem; }
+    .pack-list li::before {
+      content: "✓";
+      color: var(--cyan);
+      font-weight: 800;
+      flex: 0 0 auto;
+    }
+    .cta-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+    .price {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 8px;
+      color: var(--text);
+      font-size: 1.9rem;
+      font-weight: 800;
+      letter-spacing: -.04em;
+      margin: 10px 0 2px;
+    }
+    .price small { color: var(--faint); font-size: .78rem; font-weight: 600; letter-spacing: 0; }
+
+    /* ---------- footer ---------- */
+    footer {
+      border-top: 1px solid var(--line);
+      padding: 32px 0 40px;
+      color: var(--faint);
+      font-size: .8rem;
+    }
+    .footer-inner { display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
+    .footer-links { display: flex; gap: 16px; flex-wrap: wrap; }
+    .footer-links a { color: var(--muted); }
+    .footer-links a:hover { color: var(--cyan); }
+
+    /* ---------- reveal ---------- */
+    /* Content is visible by default; the class is kept for optional motion. */
+    .reveal { opacity: 1; transform: none; }
+    .reveal.visible { opacity: 1; transform: none; }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .reveal { opacity: 1; transform: none; transition: none; }
+      .btn, .visual-card, .visual-float { transition: none; }
+    }
+
+    /* ---------- responsive ---------- */
+    @media (max-width: 980px) {
+      .hero { grid-template-columns: 1fr; gap: 34px; padding-top: 56px; }
+      .hero h1 { max-width: 760px; }
+      .visual-stack { max-width: 680px; padding-bottom: 34px; }
+      .deliverable { grid-template-columns: 1fr; }
+      .pipeline { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .loop { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .deploy-grid { grid-template-columns: 1fr; }
+      .pack-grid { grid-template-columns: 1fr; }
+      .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 720px) {
+      .wrap { width: min(100% - 28px, 1160px); }
+      .topbar-inner { min-height: 60px; }
+      .nav a[href="#como-funciona"],
+      .nav a[href="#por-que"],
+      .nav a[href="#aplicar"] { display: none; }
+      .nav a { font-size: .78rem; padding: 7px 8px; white-space: nowrap; }
+      .nav .nav-cta { margin-left: 0; }
+      .section { padding: 62px 0; }
+      .hero { padding-top: 44px; }
+      .hero-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+      .hero-facts li { padding: 10px 8px; }
+      .grid-2, .grid-3, .grid-4, .math-grid, .result-grid { grid-template-columns: 1fr; }
+      .pipeline, .loop { grid-template-columns: 1fr; }
+      .tablist { width: 100%; }
+      .tab-btn { flex: 1 1 100%; }
+      .visual-card img { height: 330px; }
+      .visual-float { position: relative; left: auto; bottom: auto; width: 100%; margin-top: -26px; transform: rotate(-1.4deg); }
+      .visual-stack { padding-left: 0; }
+      .wide-figure img { height: 180px; }
+      .result-card img { height: 210px; }
+      .deliverable .media img { height: 220px; }
+    }
+    @media (max-width: 480px) {
+      .hero h1 { font-size: 2.65rem; }
+      .badge { font-size: .7rem; }
+      .card, .pack-card { padding: 19px; }
+      .brand { font-size: .94rem; }
+      .nav { gap: 1px; }
+      .nav a { font-size: .7rem; padding: 6px 6px; }
+    }
+  </style>
+</head>
+<body id="top">
+
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="brand" href="#top" aria-label="vSLAM Fundamentals">
+        <span class="brand-mark">v</span>SLAM<span class="dot">.</span>fundamentals
+      </a>
+      <nav class="nav" aria-label="Navegación principal">
+        <a href="#entregables">Entregables</a>
+        <a href="#como-funciona">Cómo funciona</a>
+        <a href="#por-que">Por qué funciona</a>
+        <a href="#aplicar">Aplicarlo</a>
+        <a href="#deploy">Deploy</a>
+        <a class="nav-cta" href="#pack">Pack</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <!-- ================= HERO ================= -->
+    <section class="wrap hero">
+      <div class="hero-copy reveal">
+        <span class="eyebrow">Computer Vision · Multi-view Geometry · Incremental Reconstruction</span>
+        <h1>Reconstrucción 3D<br><em>incremental<br>con PnP</em></h1>
+        <p class="lede">
+          Un motor de visión por computador que convierte una secuencia de imágenes
+          calibradas en una nube de puntos 3D coloreada y una trayectoria de cámara.
+          Un mismo código, dos entregables: geometría multivista y reconstrucción
+          secuencial con PnP.
+        </p>
+
+        <div class="badges" aria-label="Tecnologías">
+          <span class="badge python">Python 3.9+</span>
+          <span class="badge opencv">OpenCV 4.8+</span>
+          <span class="badge torch">PyTorch opcional</span>
+          <span class="badge license">Licencia MIT</span>
+        </div>
+
+        <div class="hero-actions">
+          <a class="btn primary" href="#entregables">Ver los dos entregables</a>
+          <a class="btn ghost" href="https://github.com/sejotta/vSLAM-fundamentals" target="_blank" rel="noopener">Abrir repositorio</a>
+        </div>
+
+        <ul class="hero-facts" aria-label="Resultados principales">
+          <li><strong>1.600</strong><span>puntos 3D reales</span></li>
+          <li><strong>0,38 px</strong><span>error de reproyección</span></li>
+          <li><strong>5</strong><span>keyframes de ejemplo</span></li>
+          <li><strong>5/5</strong><span>tests de geometría</span></li>
+        </ul>
+      </div>
+
+      <div class="visual-stack reveal">
+        <div class="visual-card">
+          <img src="images/bookshelf_map.png" alt="Mapa 3D coloreado de la estantería con la trayectoria de la cámara">
+          <div class="visual-caption">
+            <span>Mapa 3D + trayectoria PnP</span>
+            <span>1.600 puntos</span>
+          </div>
+        </div>
+        <div class="visual-float">
+          <img src="images/bookshelf_matches.png" alt="Matches SIFT entre dos imágenes reales de la estantería">
+          <span>Matches SIFT reales · RANSAC inliers</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= ENTREGABLES ================= -->
+    <section id="entregables" class="section">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <span class="kicker">01 · Dos entregables</span>
+          <h2>Un mismo motor, dos formas de demostrarlo</h2>
+          <p>
+            Los dos entregables comparten la misma base de visión: detección y
+            emparejamiento de puntos, geometría epipolar, triangulación y PnP.
+            La diferencia está en el alcance: reconstrucción desde varias vistas
+            o reconstrucción incremental a lo largo de una secuencia.
+          </p>
+        </div>
+
+        <div class="tablist" role="tablist" aria-label="Entregables">
+          <button class="tab-btn active" role="tab" aria-selected="true" data-tab="entregable-1">
+            Entregable 1 · Geometría y reconstrucción 3D
+          </button>
+          <button class="tab-btn" role="tab" aria-selected="false" data-tab="entregable-2">
+            Entregable 2 · vSLAM incremental con PnP
+          </button>
+        </div>
+
+        <!-- ---------- ENTREGABLE 1 ---------- -->
+        <div id="entregable-1" class="tab-panel active" role="tabpanel">
+          <div class="deliverable">
+            <article class="card reveal">
+              <span class="chip">Fundamentos multivista</span>
+              <h3 style="margin-top:14px">Geometría, homografía y reconstrucción 3D</h3>
+              <p>
+                A partir de dos o más vistas calibradas, el código estima la
+                relación geométrica entre imágenes, recupera la pose relativa de
+                la cámara y triangula una nube de puntos 3D. Es la base matemática
+                que después usa el entregable incremental.
+              </p>
+
+              <div class="mini-pipe" aria-label="Pipeline del entregable 1">
+                <span>2 vistas</span><span>→</span><span>H / F RANSAC</span><span>→</span>
+                <span>E = KᵀFK</span><span>→</span><span>R, t</span><span>→</span>
+                <span>triangulación</span><span>→</span><span>nube 3D</span>
+              </div>
+
+              <h4>Qué incluye</h4>
+              <ul>
+                <li>Detección y matching con SIFT + ratio test; adaptador opcional para SuperPoint + SuperGlue.</li>
+                <li>Homografía con RANSAC y mosaico acumulativo.</li>
+                <li>Matriz fundamental, líneas epipolares y epipolos.</li>
+                <li>Matriz esencial, <code>recoverPose</code> y chequeo de quiralidad.</li>
+                <li>Triangulación DLT con filtros de profundidad, reproyección y ángulo.</li>
+                <li>PnP con RANSAC para cámaras adicionales y exportación de trayectoria.</li>
+              </ul>
+
+              <div class="kpi-row">
+                <div class="kpi"><strong>H + F + E</strong>geometría completa</div>
+                <div class="kpi"><strong>RANSAC</strong>robusto a outliers</div>
+                <div class="kpi"><strong>3D</strong>nube coloreada</div>
+              </div>
+
+              <p class="small muted" style="margin-top:16px">
+                Ideal para: prácticas de geometría multivista, reconstrucción de
+                objetos, calibración, AR y demostraciones de estructura-from-motion.
+              </p>
+            </article>
+
+            <aside class="media reveal">
+              <figure>
+                <img src="images/bookshelf_mosaic.jpg" alt="Mosaico real de la estantería construido con homografía">
+                <figcaption>Mosaico real del bookshelf: homografía + warping.</figcaption>
+              </figure>
+              <figure>
+                <img src="images/bookshelf_matches.png" alt="Matches SIFT reales entre dos vistas de la estantería">
+                <figcaption>Correspondencias 2D: la materia prima de H, F y E.</figcaption>
+              </figure>
+            </aside>
+          </div>
+        </div>
+
+        <!-- ---------- ENTREGABLE 2 ---------- -->
+        <div id="entregable-2" class="tab-panel" role="tabpanel">
+          <div class="deliverable">
+            <article class="card reveal">
+              <span class="chip">Reconstrucción secuencial</span>
+              <h3 style="margin-top:14px">vSLAM incremental con PnP</h3>
+              <p>
+                A partir de una secuencia de keyframes, el mapa se construye
+                incrementalmente: cada nueva cámara se localiza con PnP contra
+                los puntos 3D que ya existen, y los matches que aún no tienen
+                punto 3D se triangulan y se añaden al mapa.
+              </p>
+
+              <div class="mini-pipe" aria-label="Pipeline del entregable 2">
+                <span>secuencia</span><span>→</span><span>keyframes</span><span>→</span>
+                <span>matching</span><span>→</span><span>PnP</span><span>→</span>
+                <span>nuevos puntos</span><span>→</span><span>mapa + BA</span>
+              </div>
+
+              <h4>Qué incluye</h4>
+              <ul>
+                <li>Selección automática de keyframes por flujo óptico acumulado.</li>
+                <li>Asociación 3D–2D entre puntos del mapa y keypoints de la nueva vista.</li>
+                <li>Localización por PnP con RANSAC y fallback por pose relativa.</li>
+                <li>Triangulación incremental de los matches sin punto 3D.</li>
+                <li>Refinamiento alterno tipo bundle adjustment.</li>
+                <li>Evaluación con Sim(3), ATE/RPE y escena sintética de regresión.</li>
+              </ul>
+
+              <div class="kpi-row">
+                <div class="kpi"><strong>1.600</strong>puntos reales</div>
+                <div class="kpi"><strong>0,38 px</strong>RMS</div>
+                <div class="kpi"><strong>≈ 1,8 s</strong>CPU</div>
+              </div>
+
+              <p class="small muted" style="margin-top:16px">
+                Ideal para: localización visual, robótica indoor, escaneo 3D,
+                docencia de SLAM y demostraciones de PnP + triangulación.
+              </p>
+            </article>
+
+            <aside class="media reveal">
+              <figure>
+                <img src="images/bookshelf_map.png" alt="Nube de puntos 3D y cámaras reconstruidas con PnP">
+                <figcaption>Mapa 3D + cámaras estimadas con PnP sobre 5 keyframes.</figcaption>
+              </figure>
+              <figure>
+                <img src="images/bookshelf_trajectory.png" alt="Trayectoria de cámara estimada con PnP">
+                <figcaption>Trayectoria de cámara: cada punto es una pose estimada.</figcaption>
+              </figure>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= COMO FUNCIONA ================= -->
+    <section id="como-funciona" class="section">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <span class="kicker">02 · Cómo funciona</span>
+          <h2>Del píxel a la nube de puntos</h2>
+          <p>
+            El pipeline está dividido en módulos pequeños y verificables. Esta es
+            la ruta completa, desde una imagen hasta una pose y un punto 3D.
+          </p>
+        </div>
+
+        <div class="pipeline">
+          <div class="pipe-step reveal">
+            <span class="num">01</span>
+            <h4>Keyframes</h4>
+            <p>Movimiento acumulado con Lucas–Kanade. Se queda con las vistas que aportan baseline.</p>
+          </div>
+          <div class="pipe-step reveal">
+            <span class="num">02</span>
+            <h4>Features</h4>
+            <p>SIFT (o SuperPoint) detecta puntos; ratio test o SuperGlue empareja descriptores.</p>
+          </div>
+          <div class="pipe-step reveal">
+            <span class="num">03</span>
+            <h4>F + E</h4>
+            <p>RANSAC estima la matriz fundamental; <code>E = KᵀFK</code> la lleva a coordenadas normalizadas.</p>
+          </div>
+          <div class="pipe-step reveal">
+            <span class="num">04</span>
+            <h4>Pose relativa</h4>
+            <p><code>recoverPose</code> elige la solución con los puntos delante de ambas cámaras.</p>
+          </div>
+          <div class="pipe-step reveal">
+            <span class="num">05</span>
+            <h4>Triangulación</h4>
+            <p>DLT con <code>P = K[R|t]</code>; se filtran puntos por profundidad, reproyección y ángulo.</p>
+          </div>
+          <div class="pipe-step reveal">
+            <span class="num">06</span>
+            <h4>PnP</h4>
+            <p>La nueva keyframe se localiza con 3D–2D: <code>solvePnPRansac</code> devuelve <code>T_cw</code>.</p>
+          </div>
+          <div class="pipe-step reveal">
+            <span class="num">07</span>
+            <h4>Nuevos puntos</h4>
+            <p>Los matches sin 3D se triangulan con las dos últimas poses y se añaden al mapa.</p>
+          </div>
+          <div class="pipe-step reveal">
+            <span class="num">08</span>
+            <h4>Refinamiento</h4>
+            <p>PnP + triangulación alternos reducen el error de reproyección y la deriva.</p>
+          </div>
+        </div>
+
+        <div class="card reveal" style="margin-top:20px">
+          <h3>El bucle que hace crecer el mapa</h3>
+          <p>
+            La clave del entregable 2 no es triangular una vez, sino repetir este
+            ciclo con cada keyframe. El mapa deja de ser una foto fija: se convierte
+            en la referencia para localizar la siguiente cámara.
+          </p>
+          <div class="loop">
+            <div class="loop-item">
+              <span class="loop-num">01</span>
+              <h4>PnP</h4>
+              <p>3D del mapa + 2D de la nueva imagen → pose de la cámara.</p>
+            </div>
+            <div class="loop-item">
+              <span class="loop-num">02</span>
+              <h4>Triangular</h4>
+              <p>Matches sin 3D + dos poses → puntos nuevos en coordenadas mundo.</p>
+            </div>
+            <div class="loop-item">
+              <span class="loop-num">03</span>
+              <h4>Asociar</h4>
+              <p>Cada punto queda ligado a sus keypoints y observaciones.</p>
+            </div>
+            <div class="loop-item">
+              <span class="loop-num">04</span>
+              <h4>Refinar</h4>
+              <p>BA alterno: se ajustan poses y puntos para bajar el error.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-2" style="margin-top:16px">
+          <div class="card soft reveal">
+            <h3>Dos vistas: la inicialización</h3>
+            <p>
+              El primer par de keyframes estima <code>F</code>, lo convierte en
+              <code>E</code>, recupera <code>R, t</code> y triangula el primer
+              conjunto de puntos. La cámara 0 define el origen del mundo.
+            </p>
+          </div>
+          <div class="card soft reveal">
+            <h3>Secuencia: el crecimiento</h3>
+            <p>
+              Cada nueva keyframe reutiliza los puntos ya triangulados para PnP.
+              Después aporta estructura nueva con los matches que aún no tenían
+              profundidad. Así el mapa cubre cada vez más escena.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= POR QUE FUNCIONA ================= -->
+    <section id="por-que" class="section">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <span class="kicker">03 · Por qué funciona</span>
+          <h2>La geometría detrás del código</h2>
+          <p>
+            No es una caja negra: cada paso resuelve una ecuación concreta. Estas
+            son las piezas matemáticas que hacen que PnP y la triangulación
+            incremental sean consistentes.
+          </p>
+        </div>
+
+        <div class="math-grid">
+          <article class="math-card reveal">
+            <h4>Proyección pinhole <span class="tag">modelo</span></h4>
+            <code class="formula">x ~ K [R | t] X_w</code>
+            <p>Un punto 3D del mundo se proyecta en píxeles con la matriz intrínseca y la pose de la cámara.</p>
+          </article>
+          <article class="math-card reveal">
+            <h4>Restricción epipolar <span class="tag">F</span></h4>
+            <code class="formula">x₂ᵀ F x₁ = 0</code>
+            <p>Para un punto en la imagen 1, su correspondiente en la imagen 2 debe caer sobre una línea epipolar.</p>
+          </article>
+          <article class="math-card reveal">
+            <h4>Matriz esencial <span class="tag">E</span></h4>
+            <code class="formula">E = Kᵀ F K</code>
+            <p>La misma geometría, pero en coordenadas normalizadas. De aquí salen las cuatro soluciones de pose.</p>
+          </article>
+          <article class="math-card reveal">
+            <h4>Pose relativa <span class="tag">R, t</span></h4>
+            <code class="formula">X₂ = R X₁ + t</code>
+            <p>La solución correcta es la que deja los puntos triangulados delante de ambas cámaras (quiralidad).</p>
+          </article>
+          <article class="math-card reveal">
+            <h4>Triangulación <span class="tag">DLT</span></h4>
+            <code class="formula">A X = 0  →  SVD</code>
+            <p>Cada correspondencia aporta dos ecuaciones; el último vector singular da el punto 3D homogéneo.</p>
+          </article>
+          <article class="math-card reveal">
+            <h4>PnP <span class="tag">3D–2D</span></h4>
+            <code class="formula">x ~ K [R | t] X_3D</code>
+            <p>Con puntos 3D ya conocidos y sus observaciones 2D, RANSAC resuelve la pose de la nueva cámara.</p>
+          </article>
+          <article class="math-card reveal">
+            <h4>Refinamiento <span class="tag">BA</span></h4>
+            <code class="formula">min Σ ‖π(T_cw, X) − x‖²</code>
+            <p>Se alternan PnP para las cámaras y DLT para los puntos; el error de reproyección baja.</p>
+          </article>
+          <article class="math-card reveal">
+            <h4>Evaluación <span class="tag">Sim(3)</span></h4>
+            <code class="formula">aligned = s · R · x + t</code>
+            <p>La escala monocular es ambigua. Umeyama alinea la trayectoria antes de calcular ATE/RPE.</p>
+          </article>
+        </div>
+
+        <div class="callout reveal">
+          <strong>Por qué PnP después de triangular:</strong> PnP no necesita
+          volver a calcular la estructura que ya está en el mapa. Usa los puntos
+          3D existentes para localizar la cámara, y luego la nueva pose sirve para
+          triangular los puntos que faltaban. Es un ciclo que se retroalimenta:
+          más mapa → mejor localización → más puntos → mejor mapa.
+        </div>
+
+        <div class="grid grid-2" style="margin-top:16px">
+          <div class="card soft reveal">
+            <h3>Supuestos que deben cumplirse</h3>
+            <ul>
+              <li>Cámara calibrada y imágenes corregidas de distorsión.</li>
+              <li>Escena con textura y movimiento con paralaje suficiente.</li>
+              <li>Solapamiento entre keyframes para encontrar correspondencias.</li>
+              <li>Escena mayoritariamente estática durante la captura.</li>
+            </ul>
+          </div>
+          <div class="card soft reveal">
+            <h3>Límites honestos</h3>
+            <ul>
+              <li>La escala no es métrica sin IMU, LiDAR o una referencia.</li>
+              <li>Sin loop closure, la deriva crece en secuencias largas.</li>
+              <li>Una escena casi plana o una rotación pura degradan F/E.</li>
+              <li>No hay relocalización tras pérdida de tracking.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= APLICAR ================= -->
+    <section id="aplicar" class="section">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <span class="kicker">04 · Cómo aplicarlo</span>
+          <h2>De la demo a tu propio proyecto</h2>
+          <p>
+            El código está pensado para integrarse como una librería pequeña.
+            Puedes usar los scripts tal cual o importar las clases desde Python.
+          </p>
+        </div>
+
+        <div class="grid grid-4">
+          <div class="card soft reveal">
+            <h3>Robótica indoor</h3>
+            <p>Localización visual de un robot con cámara calibrada y mapa disperso de referencias.</p>
+          </div>
+          <div class="card soft reveal">
+            <h3>AR / medición</h3>
+            <p>Estimación de pose de cámara y estructura para superponer objetos o medir escenas.</p>
+          </div>
+          <div class="card soft reveal">
+            <h3>Escaneo 3D</h3>
+            <p>Reconstrucción de objetos o estanterías a partir de una secuencia de fotos.</p>
+          </div>
+          <div class="card soft reveal">
+            <h3>Docencia</h3>
+            <p>Un ejemplo legible de SIFT, F/E, triangulación, PnP y bundle adjustment.</p>
+          </div>
+        </div>
+
+        <div class="grid grid-2" style="margin-top:18px">
+          <div class="reveal">
+            <h3>Uso como librería</h3>
+            <p class="muted small">
+              Las imágenes deben estar en RGB y sin distorsión. Los scripts de demo
+              ya hacen ese preprocesado.
+            </p>
+            <div class="code-block">
+              <div class="code-head">
+                <span>python · pipeline</span>
+                <button class="copy" data-copy="code-api">Copiar</button>
+              </div>
+              <pre id="code-api"><span class="k">from</span> vslam.camera <span class="k">import</span> Camera
+<span class="k">from</span> vslam.features <span class="k">import</span> SiftMatcher
+<span class="k">from</span> vslam.pipeline <span class="k">import</span> IncrementalSlam, SlamConfig
+
+camera = Camera(
+    fx=<span class="n">641.84</span>, fy=<span class="n">641.17</span>,
+    cx=<span class="n">311.14</span>, cy=<span class="n">244.66</span>,
+    width=<span class="n">640</span>, height=<span class="n">480</span>,
+)
+
+matcher = SiftMatcher(max_features=<span class="n">2000</span>, ratio=<span class="n">0.75</span>)
+slam = IncrementalSlam(
+    camera,
+    matcher,
+    SlamConfig(max_depth=<span class="n">50.0</span>, refine_iterations=<span class="n">3</span>),
+)
+
+result = slam.run(images, keyframe_indices)
+<span class="c"># result.poses  → (N, 4, 4) T_wc</span>
+<span class="c"># result.points → (M, 3) nube 3D</span></pre>
+            </div>
+          </div>
+
+          <div class="reveal">
+            <h3>Uso desde consola</h3>
+            <p class="muted small">
+              Los scripts incluyen la demo real, el runner genérico y el test de
+              regresión sintético.
+            </p>
+            <div class="code-block">
+              <div class="code-head">
+                <span>bash · scripts</span>
+                <button class="copy" data-copy="code-cli">Copiar</button>
+              </div>
+              <pre id="code-cli"><span class="c"># Demo real incluida (5 frames del bookshelf)</span>
+python scripts/run_bookshelf_demo.py
+
+<span class="c"># Tu propia secuencia calibrada</span>
+python scripts/run_sequence.py \
+  --images path/to/frames \
+  --fx <span class="n">641.84</span> --fy <span class="n">641.17</span> \
+  --cx <span class="n">311.14</span> --cy <span class="n">244.66</span> \
+  --dist -<span class="n">0.0233</span> <span class="n">0.2523</span> <span class="n">0</span> <span class="n">0</span> -<span class="n">0.5219</span>
+
+<span class="c"># Test sintético con ground truth</span>
+python scripts/run_synthetic_slam.py</pre>
+            </div>
+          </div>
+        </div>
+
+        <h3 style="margin-top:30px">Parámetros que conviene entender</h3>
+        <div class="table-wrap reveal">
+          <table>
+            <thead>
+              <tr><th>Parámetro</th><th>Qué controla</th><th>Valor de la demo</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>max_features</code></td><td>Número máximo de keypoints SIFT por imagen.</td><td>2.000</td></tr>
+              <tr><td><code>ratio</code></td><td>Umbral del ratio test de Lowe; menos matches, más fiables.</td><td>0,75</td></tr>
+              <tr><td><code>f_ransac_threshold</code></td><td>Distancia epipolar máxima para considerar un inlier.</td><td>0,8 px</td></tr>
+              <tr><td><code>max_reproj_error</code></td><td>Error de reproyección máximo al aceptar un punto triangulado.</td><td>2,5 px</td></tr>
+              <tr><td><code>max_depth</code></td><td>Profundidad máxima; evita puntos en el infinito.</td><td>50,0</td></tr>
+              <tr><td><code>min_triangulation_angle</code></td><td>Ángulo mínimo entre rayos; evita triangulaciones mal condicionadas.</td><td>0,5°</td></tr>
+              <tr><td><code>refine_iterations</code></td><td>Barridos de refinamiento alterno.</td><td>3</td></tr>
+              <tr><td><code>keyframe_threshold</code></td><td>Flujo óptico acumulado para crear una nueva keyframe.</td><td>25 px en secuencias</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout reveal" style="margin-top:18px">
+          <strong>Checklist de datos:</strong> calibración intrínseca, distorsión,
+          imágenes ordenadas por tiempo, textura suficiente, solapamiento entre
+          vistas y movimiento con paralaje. Sin esos ingredientes, la geometría
+          no tiene información suficiente para resolver la escena.
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= DEPLOY ================= -->
+    <section id="deploy" class="section">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <span class="kicker">05 · Deploy</span>
+          <h2>Ponerlo en marcha y publicarlo</h2>
+          <p>
+            Hay tres niveles: ejecutarlo en local, instalarlo como paquete y
+            publicar esta misma página con GitHub Pages. Todos los comandos de
+            abajo están pensados para copiar y pegar.
+          </p>
+        </div>
+
+        <div class="deploy-grid">
+          <div class="card reveal">
+            <h3>1 · Local</h3>
+            <div class="deploy-step">
+              <span class="step-num">01</span>
+              <div>
+                <h4>Clona el repositorio</h4>
+                <p>Necesitas Python 3.9 o superior.</p>
+                <div class="code-block">
+                  <div class="code-head">
+                    <span>bash</span>
+                    <button class="copy" data-copy="code-clone">Copiar</button>
+                  </div>
+                  <pre id="code-clone">git clone https://github.com/sejotta/vSLAM-fundamentals.git
+<span class="k">cd</span> vSLAM-fundamentals</pre>
+                </div>
+              </div>
+            </div>
+            <div class="deploy-step">
+              <span class="step-num">02</span>
+              <div>
+                <h4>Crea el entorno</h4>
+                <p>Usa un virtualenv para no mezclar dependencias.</p>
+                <div class="code-block">
+                  <div class="code-head">
+                    <span>bash</span>
+                    <button class="copy" data-copy="code-venv">Copiar</button>
+                  </div>
+                  <pre id="code-venv">python -m venv .venv
+<span class="c"># Windows</span>
+.venv\Scripts\activate
+<span class="c"># Linux / macOS</span>
+<span class="c"># source .venv/bin/activate</span>
+
+pip install -r requirements.txt</pre>
+                </div>
+              </div>
+            </div>
+            <div class="deploy-step">
+              <span class="step-num">03</span>
+              <div>
+                <h4>Ejecuta la demo real</h4>
+                <p>Genera el mapa, la trayectoria y los matches en <code>runs/bookshelf/</code>.</p>
+                <div class="code-block">
+                  <div class="code-head">
+                    <span>bash</span>
+                    <button class="copy" data-copy="code-run">Copiar</button>
+                  </div>
+                  <pre id="code-run">python scripts/run_bookshelf_demo.py</pre>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card reveal">
+            <h3>2 · Paquete y página</h3>
+            <div class="deploy-step">
+              <span class="step-num">04</span>
+              <div>
+                <h4>Instálalo como paquete</h4>
+                <p>Así puedes importar <code>vslam</code> desde cualquier proyecto.</p>
+                <div class="code-block">
+                  <div class="code-head">
+                    <span>bash</span>
+                    <button class="copy" data-copy="code-pip">Copiar</button>
+                  </div>
+                  <pre id="code-pip">pip install -e .
+python -c <span class="s">"import vslam; print(vslam.__version__)"</span></pre>
+                </div>
+              </div>
+            </div>
+            <div class="deploy-step">
+              <span class="step-num">05</span>
+              <div>
+                <h4>Publica este HTML con GitHub Pages</h4>
+                <p>El archivo ya está en <code>docs/index.html</code>. En GitHub:</p>
+                <div class="deploy-note">
+                  <strong>Settings → Pages → Deploy from a branch</strong><br>
+                  Branch: <code>main</code> · Folder: <code>/docs</code> → Save
+                </div>
+                <p style="margin-top:9px">
+                  La URL quedaría como
+                  <code>https://sejotta.github.io/vSLAM-fundamentals/</code>.
+                </p>
+              </div>
+            </div>
+            <div class="deploy-step">
+              <span class="step-num">06</span>
+              <div>
+                <h4>Opcional: SuperPoint + SuperGlue</h4>
+                <p>Para condiciones difíciles, cambia el back-end de features.</p>
+                <div class="code-block">
+                  <div class="code-head">
+                    <span>bash</span>
+                    <button class="copy" data-copy="code-sg">Copiar</button>
+                  </div>
+                  <pre id="code-sg">git clone https://github.com/magicleap/SuperGluePretrainedNetwork \
+  third_party/SuperGluePretrainedNetwork
+pip install torch
+python scripts/run_bookshelf_demo.py --matcher superglue</pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-3" style="margin-top:18px">
+          <div class="card soft reveal">
+            <h3>Servidor / CI</h3>
+            <p>En un servidor sin pantalla usa <code>opencv-python-headless</code> y llama a los scripts por CLI.</p>
+          </div>
+          <div class="card soft reveal">
+            <h3>Datos y rutas</h3>
+            <p>Pasa las rutas por argumento. Evita rutas absolutas de tu máquina en el código.</p>
+          </div>
+          <div class="card soft reveal">
+            <h3>Qué no es</h3>
+            <p>No es un SLAM de producción: no hay loop closure, relocalización ni fusión inercial.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= RESULTADOS ================= -->
+    <section id="resultados" class="section">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <span class="kicker">06 · Resultados</span>
+          <h2>La prueba está en las imágenes</h2>
+          <p>
+            La demo real usa cinco keyframes de una secuencia de estantería y
+            reconstruye 1.600 puntos. No hay ground truth para esa secuencia, así
+            que la métrica principal es el error de reproyección.
+          </p>
+        </div>
+
+        <figure class="wide-figure reveal">
+          <img src="images/bookshelf_sequence.gif" alt="Secuencia animada de los cinco keyframes reales de la estantería">
+          <figcaption>Secuencia de entrada: el movimiento de la cámara entre los cinco keyframes.</figcaption>
+        </figure>
+
+        <figure class="wide-figure reveal">
+          <img src="images/bookshelf_montage.jpg" alt="Cinco keyframes reales de la secuencia de la estantería">
+          <figcaption>Entrada real: cinco keyframes 640×480 de una secuencia manual.</figcaption>
+        </figure>
+
+        <div class="result-grid">
+          <figure class="result-card reveal">
+            <img src="images/bookshelf_matches.png" alt="Matches SIFT con inliers de RANSAC">
+            <div>Matches SIFT + inliers de RANSAC</div>
+          </figure>
+          <figure class="result-card reveal">
+            <img src="images/bookshelf_map.png" alt="Nube de puntos 3D coloreada y cámaras">
+            <div>Mapa 3D coloreado + cámaras</div>
+          </figure>
+          <figure class="result-card reveal">
+            <img src="images/bookshelf_trajectory.png" alt="Trayectoria estimada de la cámara">
+            <div>Trayectoria de cámara por PnP</div>
+          </figure>
+        </div>
+
+        <div class="table-wrap reveal">
+          <table>
+            <thead>
+              <tr><th>Resultado</th><th>Valor</th><th>Nota</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Keyframes reales</td><td>5</td><td>Frames 000, 100, 150, 250, 350</td></tr>
+              <tr><td>Puntos 3D</td><td>1.600</td><td>Mapa disperso coloreado</td></tr>
+              <tr><td>Error RMS de reproyección</td><td>0,38 px</td><td>Tras refinamiento</td></tr>
+              <tr><td>Tiempo de ejecución</td><td>≈ 1,8 s</td><td>CPU, SIFT, 640×480</td></tr>
+              <tr><td>Ground truth</td><td>No disponible</td><td>Secuencia real; solo métrica de reproyección</td></tr>
+              <tr><td>Test sintético</td><td>ATE 0,0096 · RPE 0,058°</td><td>Regresión con poses exactas</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout reveal">
+          <strong>Lectura correcta:</strong> el mapa es cualitativo y la escala es
+          arbitraria. Lo que demuestra es que el ciclo PnP + triangulación
+          incremental produce una estructura 3D coherente y una trayectoria
+          plausible. No es una comparación contra un benchmark de SLAM.
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= PACK ================= -->
+    <section id="pack" class="section">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <span class="kicker">07 · Pack</span>
+          <h2>Qué se lleva quien lo usa</h2>
+          <p>
+            Un paquete de estudio y referencia: el código, los dos entregables
+            explicados, un ejemplo real y una guía de puesta en marcha.
+          </p>
+        </div>
+
+        <div class="pack-grid">
+          <div class="pack-card reveal">
+            <h3>Incluye</h3>
+            <ul class="pack-list">
+              <li>Repositorio completo, modular y comentado.</li>
+              <li>Entregable 1: homografía, F/E, triangulación, PnP y nube 3D.</li>
+              <li>Entregable 2: keyframes, PnP incremental, mapa y BA.</li>
+              <li>Cinco frames reales + calibración para reproducir la demo.</li>
+              <li>Tests de geometría y escena sintética de regresión.</li>
+              <li>Esta guía HTML y el README técnico.</li>
+            </ul>
+            <div class="cta-row">
+              <a class="btn primary" href="https://github.com/sejotta/vSLAM-fundamentals" target="_blank" rel="noopener">Ver el repositorio</a>
+              <a class="btn ghost" href="https://github.com/sejotta/vSLAM-fundamentals/issues" target="_blank" rel="noopener">Consultar disponibilidad</a>
+            </div>
+          </div>
+
+          <div class="pack-card reveal">
+            <h3>Para quién es</h3>
+            <p class="muted">
+              Estudiantes de visión por computador, robótica o informática que
+              quieran entender cómo se pasa de dos imágenes a una nube 3D y a una
+              trayectoria de cámara, sin empezar desde cero.
+            </p>
+            <div class="price">A consultar <small>pack completo</small></div>
+            <p class="small muted">
+              El código del repositorio es público y tiene licencia MIT. El pack
+              añade la explicación guiada, el ejemplo real y el despliegue.
+            </p>
+            <div class="callout warning" style="margin-top:16px">
+              <strong>Uso responsable:</strong> este material es una referencia
+              educativa. No está pensado para entregarse como trabajo propio en
+              una evaluación. Si lo usas en una asignatura, cita, adapta y sigue
+              las normas de tu institución.
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-3" style="margin-top:18px">
+          <div class="card soft reveal">
+            <h3>Requisitos</h3>
+            <p>Python 3.9+, OpenCV, NumPy y Matplotlib. GPU solo si activas SuperPoint + SuperGlue.</p>
+          </div>
+          <div class="card soft reveal">
+            <h3>No incluye</h3>
+            <p>La secuencia completa, los pesos de SuperGlue, ni soporte de producción 24/7.</p>
+          </div>
+          <div class="card soft reveal">
+            <h3>Licencia</h3>
+            <p>MIT para el código. Los modelos externos conservan su propia licencia.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap footer-inner">
+      <div>
+        <strong style="color:var(--text)">vSLAM Fundamentals</strong> ·
+        Reconstrucción 3D incremental con PnP · <span id="year">2026</span>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/sejotta/vSLAM-fundamentals" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/sejotta/vSLAM-fundamentals/blob/main/README.md" target="_blank" rel="noopener">README</a>
+        <a href="https://github.com/sejotta/vSLAM-fundamentals/blob/main/LICENSE" target="_blank" rel="noopener">Licencia MIT</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      "use strict";
+
+      // Tabs
+      const tabButtons = Array.from(document.querySelectorAll(".tab-btn"));
+      const panels = Array.from(document.querySelectorAll(".tab-panel"));
+
+      function activateTab(id) {
+        tabButtons.forEach(function (button) {
+          const active = button.dataset.tab === id;
+          button.classList.toggle("active", active);
+          button.setAttribute("aria-selected", active ? "true" : "false");
+        });
+        panels.forEach(function (panel) {
+          panel.classList.toggle("active", panel.id === id);
+        });
+      }
+
+      tabButtons.forEach(function (button) {
+        button.addEventListener("click", function () {
+          activateTab(button.dataset.tab);
+        });
+      });
+
+      // Copy buttons
+      document.querySelectorAll(".copy").forEach(function (button) {
+        button.addEventListener("click", async function () {
+          const target = document.getElementById(button.dataset.copy);
+          if (!target) return;
+          const text = target.innerText;
+          try {
+            await navigator.clipboard.writeText(text);
+            const previous = button.textContent;
+            button.textContent = "Copiado";
+            window.setTimeout(function () {
+              button.textContent = previous;
+            }, 1500);
+          } catch (error) {
+            button.textContent = "Selecciona y copia";
+            window.setTimeout(function () {
+              button.textContent = "Copiar";
+            }, 1800);
+          }
+        });
+      });
+
+      // Reveal on scroll
+      const revealItems = Array.from(document.querySelectorAll(".reveal"));
+      if ("IntersectionObserver" in window) {
+        const observer = new IntersectionObserver(
+          function (entries) {
+            entries.forEach(function (entry) {
+              if (entry.isIntersecting) {
+                entry.target.classList.add("visible");
+                observer.unobserve(entry.target);
+              }
+            });
+          },
+          { threshold: 0.08, rootMargin: "0px 0px -40px 0px" }
+        );
+        revealItems.forEach(function (item) {
+          observer.observe(item);
+        });
+      } else {
+        revealItems.forEach(function (item) {
+          item.classList.add("visible");
+        });
+      }
+
+      // Year
+      const year = document.getElementById("year");
+      if (year) year.textContent = new Date().getFullYear();
+    })();
+  </script>
+</body>
+</html>

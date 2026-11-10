@@ -22,6 +22,7 @@ is personal, institutional, proprietary or simply noise.
 | Trajectory evaluation | `vslam/evaluate.py` (Umeyama Sim(3), ATE, RPE) |
 | Real example | `examples/bookshelf/` (five frames + calibration) |
 | Real-data demo | `scripts/run_bookshelf_demo.py` |
+| HTML landing page | `docs/index.html` (both deliverables, deploy guide) |
 | Generic sequence runner | `scripts/run_sequence.py` |
 | Synthetic regression harness | `vslam/simulation.py`, `scripts/run_synthetic_slam.py` |
 | Tests | `tests/test_geometry.py` |
@@ -101,6 +102,11 @@ The synthetic renderer remains in the repository only as a deterministic
 regression harness with exact ground truth. It is clearly labelled as a test,
 not as the project's data.
 
+A single HTML page, [`docs/index.html`](docs/index.html), presents both
+deliverables together: how the code works, why the geometry is valid, how to
+apply it, how to deploy it, and what the pack includes. It is ready for GitHub
+Pages using the `/docs` folder.
+
 ---
 
 ## What is intentionally *not* claimed
@@ -133,6 +139,8 @@ python scripts/run_homography_demo.py
   points. It exists to catch geometry regressions.
 - The homography demo estimates a planar transform from 839 matches with 815
   RANSAC inliers and writes a mosaic.
+- The HTML page is self-contained, all image links resolve, all anchors exist,
+  and its JavaScript passes `node --check`.
 
 The bookshelf numbers are a qualitative reconstruction: there is no
 ground-truth trajectory for that sequence. The synthetic numbers can be

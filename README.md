@@ -283,6 +283,14 @@ geometry; the result is a qualitative reconstruction, not a metric evaluation.
 
 ---
 
+## Presentación interactiva
+
+La guía visual de los dos entregables está en
+[`docs/index.html`](docs/index.html). Está preparada para publicarse con
+GitHub Pages usando la carpeta `/docs`.
+
+---
+
 ## Licence
 
 MIT. See [LICENSE](LICENSE). The optional SuperPoint/SuperGlue code and
