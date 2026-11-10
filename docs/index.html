@@ -9,7 +9,9 @@
   <meta property="og:title" content="vSLAM Fundamentals — Reconstrucción 3D con PnP">
   <meta property="og:description" content="Un motor, dos entregables: geometría multivista y reconstrucción 3D incremental con PnP.">
   <meta property="og:type" content="website">
-  <meta property="og:image" content="images/bookshelf_map.png">
+  <meta property="og:url" content="https://sejotta.github.io/vSLAM-fundamentals/">
+  <meta property="og:image" content="https://sejotta.github.io/vSLAM-fundamentals/images/bookshelf_map.png">
+  <link rel="canonical" href="https://sejotta.github.io/vSLAM-fundamentals/">
   <style>
     :root {
       --bg: #070b16;
@@ -1387,15 +1389,19 @@ python -c <span class="s">"import vslam; print(vslam.__version__)"</span></pre>
             <div class="deploy-step">
               <span class="step-num">05</span>
               <div>
-                <h4>Publica este HTML con GitHub Pages</h4>
-                <p>El archivo ya está en <code>docs/index.html</code>. En GitHub:</p>
+                <h4>GitHub Pages</h4>
+                <p>
+                  Esta página ya está publicada en
+                  <a href="https://sejotta.github.io/vSLAM-fundamentals/" target="_blank" rel="noopener">sejotta.github.io/vSLAM-fundamentals</a>.
+                  Para reproducir el despliegue:
+                </p>
                 <div class="deploy-note">
                   <strong>Settings → Pages → Deploy from a branch</strong><br>
                   Branch: <code>main</code> · Folder: <code>/docs</code> → Save
                 </div>
                 <p style="margin-top:9px">
-                  La URL quedaría como
-                  <code>https://sejotta.github.io/vSLAM-fundamentals/</code>.
+                  El archivo fuente es <code>docs/index.html</code> y
+                  <code>docs/.nojekyll</code> evita el procesado de Jekyll.
                 </p>
               </div>
             </div>
@@ -1574,6 +1580,7 @@ python scripts/run_bookshelf_demo.py --matcher superglue</pre>
         Reconstrucción 3D incremental con PnP · <span id="year">2026</span>
       </div>
       <div class="footer-links">
+        <a href="https://sejotta.github.io/vSLAM-fundamentals/" target="_blank" rel="noopener">Web</a>
         <a href="https://github.com/sejotta/vSLAM-fundamentals" target="_blank" rel="noopener">GitHub</a>
         <a href="https://github.com/sejotta/vSLAM-fundamentals/blob/main/README.md" target="_blank" rel="noopener">README</a>
         <a href="https://github.com/sejotta/vSLAM-fundamentals/blob/main/LICENSE" target="_blank" rel="noopener">Licencia MIT</a>

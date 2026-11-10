@@ -6,6 +6,7 @@
 ![OpenCV](https://img.shields.io/badge/OpenCV-4.8%2B-5C3EE8?logo=opencv&logoColor=white)
 ![PyTorch](https://img.shields.io/badge/PyTorch-optional-EE4C2C?logo=pytorch&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-6f42c1)
+[![Live page](https://img.shields.io/badge/Live%20page-online-5eead4)](https://sejotta.github.io/vSLAM-fundamentals/)
 
 A compact Python implementation of a visual reconstruction pipeline: from a
 calibrated image sequence it builds a sparse coloured 3D map and estimates the
@@ -285,9 +286,9 @@ geometry; the result is a qualitative reconstruction, not a metric evaluation.
 
 ## Presentación interactiva
 
-La guía visual de los dos entregables está en
-[`docs/index.html`](docs/index.html). Está preparada para publicarse con
-GitHub Pages usando la carpeta `/docs`.
+La guía visual de los dos entregables está publicada en
+**https://sejotta.github.io/vSLAM-fundamentals/** y su fuente está en
+[`docs/index.html`](docs/index.html). GitHub Pages sirve la carpeta `/docs`.
 
 ---
 
